@@ -1,0 +1,44 @@
+﻿@page "/Login"
+@model BlutdruckErfassungApp.Pages.LoginModel
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login | Blutdruck Erfassung</title>
+    <link rel="stylesheet" href="~/css/app.css" asp-append-version="true" />
+</head>
+<body class="login-body">
+<div class="login-card">
+    <h1>Blutdruck Erfassung</h1>
+    <p>Bitte anmelden.</p>
+
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="status error">@Model.ErrorMessage</div>
+    }
+
+    <form method="post">
+        <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+
+        <div class="field-group">
+            <label asp-for="Input.UserName"></label>
+            <input asp-for="Input.UserName" autocomplete="username" />
+            <span asp-validation-for="Input.UserName"></span>
+        </div>
+
+        <div class="field-group">
+            <label asp-for="Input.Password"></label>
+            <input asp-for="Input.Password" autocomplete="current-password" />
+            <span asp-validation-for="Input.Password"></span>
+        </div>
+
+        <button type="submit" class="btn-primary">Anmelden</button>
+    </form>
+</div>
+</body>
+</html>

@@ -1,0 +1,14 @@
+**/.git
+**/.vs
+**/bin
+**/obj
+**/*.user
+**/*.suo
+**/*.db-shm
+**/*.db-wal
+.dotnet
+.nuget
+.appdata
+**/packages/*
+**/.nuget/packages/*
+!**/packages/build/

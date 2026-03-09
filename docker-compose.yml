@@ -1,0 +1,21 @@
+﻿services:
+  blutdruck-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: blutdruck-app
+    ports:
+      - "8080:8080"
+    environment:
+      Security__DataProtectionPath: "/app/keyring"
+      KeyVault__Uri: "https://<dein-vault-name>.vault.azure.net/"
+      # Fallback nur wenn kein Vault genutzt wird:
+      # ConnectionStrings__DefaultConnection: "Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<db>;User ID=<user>;Password=<password>;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+      # AzureDocumentIntelligence__Endpoint: "https://<resource>.cognitiveservices.azure.com/"
+      # AzureDocumentIntelligence__ApiKey: "<api-key>"
+    volumes:
+      - dp_keys:/app/keyring
+    restart: unless-stopped
+
+volumes:
+  dp_keys:

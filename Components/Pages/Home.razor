@@ -1,0 +1,261 @@
+@page "/"
+@attribute [Authorize]
+
+@inject IDbContextFactory<AppDbContext> DbContextFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IOcrService OcrService
+@inject OcrParsingService OcrParsingService
+@inject IJSRuntime JS
+
+<PageTitle>Blutdruck One Pager</PageTitle>
+
+<div class="page-grid">
+    <section class="panel">
+        <h1>Messung erfassen</h1>
+        <p>Foto vom Blutdruckmessgerät hochladen (iPhone-kompatibel), OCR ausführen und Werte prüfen.</p>
+
+        <div class="field-group">
+            <label for="upload">Foto</label>
+            <InputFile id="upload"
+                       OnChange="HandleFileSelectedAsync"
+                       accept="image/*"
+                       @attributes="_fileAttributes" />
+            @if (!string.IsNullOrWhiteSpace(_selectedFileName))
+            {
+                <small>Datei: @_selectedFileName</small>
+            }
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <div class="status error">@_errorMessage</div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_successMessage))
+        {
+            <div class="status success">@_successMessage</div>
+        }
+
+        <div class="form-grid">
+            <div class="field-group">
+                <label for="measuredAt">Datum/Uhrzeit</label>
+                <InputDate id="measuredAt" Type="InputDateType.DateTimeLocal" @bind-Value="_draftMeasuredAtLocal" />
+            </div>
+
+            <div class="field-group">
+                <label for="systolic">Systole (mmHg)</label>
+                <InputNumber id="systolic" @bind-Value="_draftSystolic" />
+            </div>
+
+            <div class="field-group">
+                <label for="diastolic">Diastole (mmHg)</label>
+                <InputNumber id="diastolic" @bind-Value="_draftDiastolic" />
+            </div>
+
+            <div class="field-group">
+                <label for="pulse">Puls (bpm)</label>
+                <InputNumber id="pulse" @bind-Value="_draftPulse" />
+            </div>
+        </div>
+
+        <div class="field-group">
+            <label for="ocrtext">OCR-Text</label>
+            <InputTextArea id="ocrtext" @bind-Value="_ocrText" rows="6" />
+        </div>
+
+        <button class="btn-primary" @onclick="SaveReadingAsync" disabled="@_isSaving">Speichern</button>
+    </section>
+
+    <section class="panel">
+        <h2>Verlauf</h2>
+        <canvas id="bpChart" height="260"></canvas>
+
+        <table class="reading-table">
+            <thead>
+                <tr>
+                    <th>Zeitpunkt</th>
+                    <th>Systole</th>
+                    <th>Diastole</th>
+                    <th>Puls</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var entry in _readings)
+                {
+                    <tr>
+                        <td>@entry.MeasuredAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
+                        <td class="systolic">@entry.Systolic</td>
+                        <td class="diastolic">@entry.Diastolic</td>
+                        <td class="pulse">@entry.Pulse</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+</div>
+
+@code {
+    private const long MaxUploadBytes = 10 * 1024 * 1024;
+
+    private readonly Dictionary<string, object> _fileAttributes = new()
+    {
+        ["capture"] = "environment"
+    };
+
+    private string _userNameNormalized = string.Empty;
+    private string _selectedFileName = string.Empty;
+    private string _ocrText = string.Empty;
+    private string _errorMessage = string.Empty;
+    private string _successMessage = string.Empty;
+
+    private bool _isSaving;
+    private bool _refreshChart;
+
+    private DateTime _draftMeasuredAtLocal = DateTime.Now;
+    private int? _draftSystolic;
+    private int? _draftDiastolic;
+    private int? _draftPulse;
+
+    private List<BloodPressureReading> _readings = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _userNameNormalized = AuthService.NormalizeUserName(authState.User.Identity?.Name ?? string.Empty);
+        await LoadReadingsAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_refreshChart)
+        {
+            return;
+        }
+
+        var chartData = _readings
+            .OrderBy(x => x.MeasuredAtUtc)
+            .Select(x => new
+            {
+                label = x.MeasuredAtUtc.ToLocalTime().ToString("dd.MM HH:mm"),
+                systolic = x.Systolic,
+                diastolic = x.Diastolic,
+                pulse = x.Pulse
+            })
+            .ToList();
+
+        await JS.InvokeVoidAsync("bpChart.render", chartData);
+        _refreshChart = false;
+    }
+
+    private async Task HandleFileSelectedAsync(InputFileChangeEventArgs args)
+    {
+        _errorMessage = string.Empty;
+        _successMessage = string.Empty;
+
+        try
+        {
+            var file = args.File;
+            _selectedFileName = file.Name;
+
+            if (!file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            {
+                _errorMessage = "Bitte ein Bild hochladen.";
+                return;
+            }
+
+            if (file.Size > MaxUploadBytes)
+            {
+                _errorMessage = "Datei ist zu groß (max. 10 MB).";
+                return;
+            }
+
+            await using var stream = file.OpenReadStream(MaxUploadBytes);
+            _ocrText = await OcrService.ExtractTextAsync(stream);
+
+            var parsed = OcrParsingService.Parse(_ocrText, DateTimeOffset.Now);
+            _draftMeasuredAtLocal = parsed.MeasuredAt?.LocalDateTime ?? DateTime.Now;
+            _draftSystolic = parsed.Systolic;
+            _draftDiastolic = parsed.Diastolic;
+            _draftPulse = parsed.Pulse;
+
+            _successMessage = "OCR erfolgreich. Werte bitte kurz prüfen und speichern.";
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"OCR fehlgeschlagen: {ex.Message}";
+        }
+    }
+
+    private async Task SaveReadingAsync()
+    {
+        _errorMessage = string.Empty;
+        _successMessage = string.Empty;
+
+        if (_draftSystolic is null || _draftDiastolic is null || _draftPulse is null)
+        {
+            _errorMessage = "Bitte Systole, Diastole und Puls vollständig eintragen.";
+            return;
+        }
+
+        if (!IsInRange(_draftSystolic.Value, 30, 300) ||
+            !IsInRange(_draftDiastolic.Value, 20, 200) ||
+            !IsInRange(_draftPulse.Value, 20, 250))
+        {
+            _errorMessage = "Werte außerhalb des erlaubten Bereichs. Bitte Eingaben prüfen.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_userNameNormalized))
+        {
+            _errorMessage = "Benutzer konnte nicht ermittelt werden. Bitte neu anmelden.";
+            return;
+        }
+
+        _isSaving = true;
+
+        try
+        {
+            await using var db = await DbContextFactory.CreateDbContextAsync();
+            var localMeasuredAt = DateTime.SpecifyKind(_draftMeasuredAtLocal, DateTimeKind.Local);
+
+            var entry = new BloodPressureReading
+            {
+                UserNameNormalized = _userNameNormalized,
+                MeasuredAtUtc = new DateTimeOffset(localMeasuredAt.ToUniversalTime()),
+                Systolic = _draftSystolic.Value,
+                Diastolic = _draftDiastolic.Value,
+                Pulse = _draftPulse.Value,
+                RawOcrText = _ocrText,
+                SourceFileName = _selectedFileName
+            };
+
+            db.BloodPressureReadings.Add(entry);
+            await db.SaveChangesAsync();
+
+            await LoadReadingsAsync();
+            _successMessage = "Messung gespeichert.";
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Speichern fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task LoadReadingsAsync()
+    {
+        await using var db = await DbContextFactory.CreateDbContextAsync();
+        _readings = await db.BloodPressureReadings
+            .Where(x => x.UserNameNormalized == _userNameNormalized)
+            .OrderByDescending(x => x.MeasuredAtUtc)
+            .Take(40)
+            .ToListAsync();
+
+        _refreshChart = true;
+    }
+
+    private static bool IsInRange(int value, int min, int max) => value >= min && value <= max;
+}
