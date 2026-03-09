@@ -9,6 +9,6 @@
 .dotnet
 .nuget
 .appdata
-**/packages/*
-**/.nuget/packages/*
-!**/packages/build/
+.env
+.env.*
+!.env.example

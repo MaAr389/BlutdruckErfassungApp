@@ -1,5 +1,4 @@
-using Azure.Extensions.AspNetCore.Configuration.Secrets;
-using Azure.Identity;
+using System.Text.Json;
 using BlutdruckErfassungApp.Components;
 using BlutdruckErfassungApp.Data;
 using BlutdruckErfassungApp.Services;
@@ -12,14 +11,13 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var keyVaultUri = builder.Configuration["KeyVault:Uri"];
-if (!string.IsNullOrWhiteSpace(keyVaultUri))
-{
-    builder.Configuration.AddAzureKeyVault(new Uri(keyVaultUri), new DefaultAzureCredential());
-}
+await AddLocalVaultSecretsAsync(builder.Configuration);
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? "Server=(localdb)\\mssqllocaldb;Database=BlutdruckErfassungApp;Trusted_Connection=True;TrustServerCertificate=True;";
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    connectionString = "Server=(localdb)\\mssqllocaldb;Database=BlutdruckErfassungApp;Trusted_Connection=True;TrustServerCertificate=True;";
+}
 
 var forceSecureCookies = builder.Configuration.GetValue("Security:ForceSecureCookies", !builder.Environment.IsDevelopment());
 
@@ -103,3 +101,62 @@ await using (var scope = app.Services.CreateAsyncScope())
 }
 
 app.Run();
+
+static async Task AddLocalVaultSecretsAsync(ConfigurationManager configuration)
+{
+    var localVaultEnabled = configuration.GetValue("LocalVault:Enabled", false);
+    if (!localVaultEnabled)
+    {
+        return;
+    }
+
+    var address = configuration["LocalVault:Address"]?.TrimEnd('/');
+    var token = configuration["LocalVault:Token"];
+    var mount = configuration["LocalVault:Mount"] ?? "secret";
+    var secretPath = configuration["LocalVault:SecretPath"] ?? "blutdruck";
+
+    if (string.IsNullOrWhiteSpace(address) || string.IsNullOrWhiteSpace(token))
+    {
+        throw new InvalidOperationException("LocalVault ist aktiviert, aber Address oder Token fehlen.");
+    }
+
+    var requestUri = $"{address}/v1/{mount.Trim('/')}/data/{secretPath.Trim('/')}";
+
+    using var httpClient = new HttpClient
+    {
+        Timeout = TimeSpan.FromSeconds(10)
+    };
+
+    using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+    request.Headers.Add("X-Vault-Token", token);
+
+    using var response = await httpClient.SendAsync(request);
+    if (!response.IsSuccessStatusCode)
+    {
+        var responseBody = await response.Content.ReadAsStringAsync();
+        throw new InvalidOperationException($"Lokaler Vault konnte nicht gelesen werden. HTTP {(int)response.StatusCode}: {responseBody}");
+    }
+
+    await using var responseStream = await response.Content.ReadAsStreamAsync();
+    using var json = await JsonDocument.ParseAsync(responseStream);
+
+    if (!json.RootElement.TryGetProperty("data", out var dataNode) ||
+        !dataNode.TryGetProperty("data", out var secretsNode))
+    {
+        throw new InvalidOperationException("Ungültige Vault-Antwort: erwartete Struktur data.data fehlt.");
+    }
+
+    var flattenedSecrets = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+
+    foreach (var property in secretsNode.EnumerateObject())
+    {
+        var key = property.Name.Replace("--", ":", StringComparison.Ordinal);
+        var value = property.Value.ValueKind == JsonValueKind.String
+            ? property.Value.GetString()
+            : property.Value.ToString();
+
+        flattenedSecrets[key] = value;
+    }
+
+    configuration.AddInMemoryCollection(flattenedSecrets);
+}

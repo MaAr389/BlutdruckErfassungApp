@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "BlutdruckErfassungApp": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:62853;http://localhost:62854"
+    }
+  }
+}

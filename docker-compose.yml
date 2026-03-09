@@ -1,18 +1,68 @@
-﻿services:
+services:
+  vault:
+    image: hashicorp/vault:1.17
+    container_name: blutdruck-vault
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN_ID}
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    command: vault server -dev
+    ports:
+      - "8200:8200"
+    healthcheck:
+      test: ["CMD", "vault", "status", "-address=http://127.0.0.1:8200"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  vault-init:
+    image: hashicorp/vault:1.17
+    container_name: blutdruck-vault-init
+    depends_on:
+      vault:
+        condition: service_healthy
+    environment:
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: ${VAULT_DEV_ROOT_TOKEN_ID}
+      AZURE_SQL_CONNECTION_STRING: ${AZURE_SQL_CONNECTION_STRING}
+      OCR_ENDPOINT: ${OCR_ENDPOINT}
+      OCR_API_KEY: ${OCR_API_KEY}
+      BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD}
+      VAULT_KV_PATH: ${VAULT_KV_PATH}
+    command:
+      - /bin/sh
+      - -ec
+      - |
+          vault kv put "$VAULT_KV_PATH" \
+            ConnectionStrings--DefaultConnection="$AZURE_SQL_CONNECTION_STRING" \
+            AzureDocumentIntelligence--Endpoint="$OCR_ENDPOINT" \
+            AzureDocumentIntelligence--ApiKey="$OCR_API_KEY" \
+            BootstrapAdmin--Username="$BOOTSTRAP_ADMIN_USERNAME" \
+            BootstrapAdmin--Password="$BOOTSTRAP_ADMIN_PASSWORD"
+    restart: "no"
+
   blutdruck-app:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: blutdruck-app
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
     ports:
       - "8080:8080"
     environment:
-      Security__DataProtectionPath: "/app/keyring"
-      KeyVault__Uri: "https://<dein-vault-name>.vault.azure.net/"
-      # Fallback nur wenn kein Vault genutzt wird:
-      # ConnectionStrings__DefaultConnection: "Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<db>;User ID=<user>;Password=<password>;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
-      # AzureDocumentIntelligence__Endpoint: "https://<resource>.cognitiveservices.azure.com/"
-      # AzureDocumentIntelligence__ApiKey: "<api-key>"
+      ASPNETCORE_ENVIRONMENT: Production
+      Security__DataProtectionPath: /app/keyring
+      Security__ForceSecureCookies: "true"
+      LocalVault__Enabled: "true"
+      LocalVault__Address: http://vault:8200
+      LocalVault__Token: ${VAULT_DEV_ROOT_TOKEN_ID}
+      LocalVault__Mount: ${LOCAL_VAULT_MOUNT}
+      LocalVault__SecretPath: ${LOCAL_VAULT_SECRET_PATH}
     volumes:
       - dp_keys:/app/keyring
     restart: unless-stopped

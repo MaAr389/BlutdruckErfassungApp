@@ -1,0 +1,16 @@
+# Build artifacts
+bin/
+obj/
+
+# IDE / tooling
+.vs/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Local helper folders from Codex
+.dotnet/
+.nuget/
+.appdata/

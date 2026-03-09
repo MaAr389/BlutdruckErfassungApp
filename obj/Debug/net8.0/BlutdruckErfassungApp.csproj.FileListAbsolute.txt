@@ -18,9 +18,7 @@ C:\Users\Martin\Documents\OneDrive - martinarend - IT Consulting\Anlagen\Workspa
 C:\Users\Martin\Documents\OneDrive - martinarend - IT Consulting\Anlagen\Workspace\BlutdruckErfassungApp\bin\Debug\net8.0\BlutdruckErfassungApp.dll
 C:\Users\Martin\Documents\OneDrive - martinarend - IT Consulting\Anlagen\Workspace\BlutdruckErfassungApp\bin\Debug\net8.0\BlutdruckErfassungApp.pdb
 C:\Users\Martin\Documents\OneDrive - martinarend - IT Consulting\Anlagen\Workspace\BlutdruckErfassungApp\bin\Debug\net8.0\Azure.Core.dll
-C:\Users\Martin\Documents\OneDrive - martinarend - IT Consulting\Anlagen\Workspace\BlutdruckErfassungApp\bin\Debug\net8.0\Azure.Extensions.AspNetCore.Configuration.Secrets.dll
 C:\Users\Martin\Documents\OneDrive - martinarend - IT Consulting\Anlagen\Workspace\BlutdruckErfassungApp\bin\Debug\net8.0\Azure.Identity.dll
-C:\Users\Martin\Documents\OneDrive - martinarend - IT Consulting\Anlagen\Workspace\BlutdruckErfassungApp\bin\Debug\net8.0\Azure.Security.KeyVault.Secrets.dll
 C:\Users\Martin\Documents\OneDrive - martinarend - IT Consulting\Anlagen\Workspace\BlutdruckErfassungApp\bin\Debug\net8.0\Microsoft.Bcl.AsyncInterfaces.dll
 C:\Users\Martin\Documents\OneDrive - martinarend - IT Consulting\Anlagen\Workspace\BlutdruckErfassungApp\bin\Debug\net8.0\Microsoft.Data.SqlClient.dll
 C:\Users\Martin\Documents\OneDrive - martinarend - IT Consulting\Anlagen\Workspace\BlutdruckErfassungApp\bin\Debug\net8.0\Microsoft.EntityFrameworkCore.dll
@@ -81,3 +79,4 @@ C:\Users\Martin\Documents\OneDrive - martinarend - IT Consulting\Anlagen\Workspa
 C:\Users\Martin\Documents\OneDrive - martinarend - IT Consulting\Anlagen\Workspace\BlutdruckErfassungApp\obj\Debug\net8.0\BlutdruckErfassungApp.pdb
 C:\Users\Martin\Documents\OneDrive - martinarend - IT Consulting\Anlagen\Workspace\BlutdruckErfassungApp\obj\Debug\net8.0\BlutdruckErfassungApp.genruntimeconfig.cache
 C:\Users\Martin\Documents\OneDrive - martinarend - IT Consulting\Anlagen\Workspace\BlutdruckErfassungApp\obj\Debug\net8.0\ref\BlutdruckErfassungApp.dll
+C:\Users\Martin\Documents\OneDrive - martinarend - IT Consulting\Anlagen\Workspace\BlutdruckErfassungApp\obj\Debug\net8.0\BlutdruckErfassungApp.sourcelink.json
